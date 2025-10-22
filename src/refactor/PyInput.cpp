@@ -39,11 +39,6 @@ PyInput::PyInput() {
         input_sparsity = stod(value);
       }
     }
-    // for (auto i : shape) {
-    //   cout << i << " ";
-    // }
-    // cout << endl;
-    // cout << "input_sparsity = " << input_sparsity << endl;
   } else {
     throw runtime_error("Cannot Open PyInput.txt!!");
   }

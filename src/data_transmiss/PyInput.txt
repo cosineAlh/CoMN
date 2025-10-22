@@ -1,2 +1,2 @@
-shape: 1,128,8,8
-input_sparsity: 0.012154074385762215
+shape: -1,512
+input_sparsity: 0.0

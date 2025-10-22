@@ -27,9 +27,6 @@ PyParam::PyParam() {
       string key, value;
       getline(iss, key, ':');
       getline(iss, value);
-      // cout << "key = " << key << endl;
-      // cout << "value = " << value << endl;
-      // remove spaces in key(trailing) and value(leading)
       key.erase(key.find_last_not_of(" ") + 1);
       value.erase(0, key.find_first_not_of(" "));
       if (key == "layer") {
@@ -52,13 +49,8 @@ PyParam::PyParam() {
         a_precision = stoi(value);
       }
     }
-    // cout << "layer = " << layer << endl;
-    // cout << "stride = " << stride.first << "," << stride.second << endl;
-    // cout << "kernel_size = " << kernel_size.first << "," <<
-    // kernel_size.second << endl; cout << "w_precision = " << w_precision <<
-    // endl; cout << "a_precision = " << a_precision << endl;
   } else {
-    throw runtime_error("Cannot Open Pyparam.txt!!");
+    throw runtime_error("Cannot Open PyParam.txt!!");
   }
 }
 

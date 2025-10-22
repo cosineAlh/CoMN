@@ -1,16 +1,16 @@
-from Parameters import *
-from Circuit_optimizer import *
-from Specification_optimizer import *
 import sys
+
+from Parameters import *
+from Specification_optimizer import *
 
 temp = sys.stdout
 
-def performance_optimizer(user_name,weight_name,tid):
+def performance_optimizer(mapping_out_path, onnx_model_path):
     optparam = OptParam()
     Specparameters = SpecboundParam()
     if optparam['specification_optimized'] == True:
-        perf_root_path = "../generate_data/" + user_name + "/performance_out"
-        perf_path = perf_root_path + "/performance_out" + str(tid) + ".txt"
+        perf_root_path = "../generate_data/performance_out"
+        perf_path = perf_root_path + "/performance_out.txt"
         if Specparameters['minSubarray'] < 32 or Specparameters['minSubarray'] > 512:
             with open(perf_path, 'w+', encoding="utf-8") as f:
                 f.write('Minimum subarray size error ')
@@ -61,18 +61,11 @@ def performance_optimizer(user_name,weight_name,tid):
                 f.write('Maximum buffer bandwidth error')
                 f.write("\n")
             exit()
-        Specification_optimizer(user_name,weight_name,tid)
+        Specification_optimizer(mapping_out_path, onnx_model_path)
 
-
-    if optparam['circuit_optimized'] == True:
-        updateParam('MacroParam', "predefinedMacro", False)
-        Circuit_optimizer(user_name,weight_name,tid)
-
-def performance(user_name,weight_name,tid):
-    updateParam('OptParam', 'guiding_finish', False)
-
-    performance_optimizer(user_name,weight_name,tid)
-    updateParam('OptParam', 'guiding_finish', True)
 
 if __name__ == '__main__':
-    performance("tcad","",'1')
+    onnx_model_path = "/home/anlh/Workspace/3D-Multi_Level_Opt/onnx_model/resnet18.onnx"
+    mapping_out_path = "../generate_data/mapping_out/mapping_out.txt"
+
+    performance_optimizer(mapping_out_path, onnx_model_path)

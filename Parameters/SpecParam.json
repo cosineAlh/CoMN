@@ -1,17 +1,1 @@
-{
-  "Subarray": [
-    1024,
-    1024
-  ],
-  "Tile": [
-    2,
-    2
-  ],
-  "parallism": 256,
-  "buffersizeTile": 64,
-  "ColumnMUX": 4,
-  "MeshNoC_flitband": 64,
-  "HtreeNoC_flitband": 128,
-  "SFU_num": 16,
-  "buswidthTile": 128
-}
+{"Subarray": [64, 64], "Tile": [2, 2], "parallism": 256, "buffersizeTile": 4, "ColumnMUX": 4, "MeshNoC_flitband": 128, "buswidthTile": 128, "NumTiers": 3}

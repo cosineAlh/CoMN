@@ -14,15 +14,15 @@
 namespace Refactor {
 
 // The interface of Calculating the Performance of all modules required.
-// Include Macro,Buffer,Mesh,SFU,Htree etc.
 void PPA_cost();
 
-// Performance of buffer
-void Buffer_Perf(int bufferSize, int buswidth, int featureSize);
+void HISIM();
+
+// Performance of PE
+double PE_Perf();
 
 // Performance of Orion(routers)
-void Orion_Perf(int Fliter_size, int inPorts, int outPorts, int v_channels,
-                double freq, int featureSize, bool isMesh);
+double NOC_Perf(int inPorts, int outPorts, int v_channels, double freq, int featureSize);
 
 } // namespace Refactor
 

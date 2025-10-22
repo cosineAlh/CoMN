@@ -1,139 +1,93 @@
 import json
 import os
-from frozen_dir import app_path
 
-def layer_connect(filename, prelayer, nextlayer, type, volumn,Dir="Parameters"):
+from utils import app_path
+
+
+def layer_connect(filename, prelayer, nextlayer, type, volumn, prelayer_tile=None, nextlayer_tile=None, Dir="Parameters"):
     opt = OptParam(Dir=Dir)
-    if opt["evaluate_mode"] == True:
-        if len(volumn) == 4:
-            volumn = volumn[0] * volumn[1] * volumn[2] * volumn[3]
-        else:
-            volumn = volumn[0] * volumn[1]
-        if prelayer > 0:
-            with open(
-                os.path.join(app_path(), "Parameters/{}.txt").format(filename),
-                "a+",
-                encoding="utf-8",
-            ) as f:
+    if opt.get("evaluate_mode", False) is True:
+        # Compute volumn if a sequence/array is provided; otherwise cast to int
+        try:
+            # Treat numpy arrays and lists/tuples uniformly
+            if hasattr(volumn, "__iter__") and not isinstance(volumn, (str, bytes)):
+                prod = 1
+                # Support both 2D and 4D shapes; multiply all provided dims
+                for v in volumn:
+                    prod *= int(v)
+                volumn_val = int(prod)
+            else:
+                volumn_val = int(volumn)
+        except Exception:
+            # Fallback: keep original value if unexpected
+            volumn_val = volumn
+
+        # Default tiles to (0,0) when not provided
+        if prelayer_tile is None:
+            prelayer_tile = (0, 0)
+        if nextlayer_tile is None:
+            nextlayer_tile = (0, 0)
+
+        # Only log valid layer links (aligns with template starting from layer 1)
+        if int(prelayer) > 0:
+            out_dir = os.path.join(app_path(), Dir)
+            os.makedirs(out_dir, exist_ok=True)
+            out_path = os.path.join(out_dir, f"{filename}.txt")
+            with open(out_path, "a+", encoding="utf-8") as f:
                 f.write(
                     "prelayer: {prelayer}\t"
                     "nextlayer: {nextlayer}\t"
                     "type: {type}\t"
                     "volumn: {volumn}\t"
-                    "prelayer_tile: {tiles1} {tiles2} \t"
-                    "nextlayer_tile: {tiles3} {tiles4} \n".format(
-                        prelayer=prelayer,
-                        nextlayer=nextlayer,
-                        type=type,
-                        volumn=volumn,
-                        tiles1=0,
-                        tiles2=0,
-                        tiles3=0,
-                        tiles4=0,
+                    "prelayer_tile: {pt0} {pt1} \t"
+                    "nextlayer_tile: {nt0} {nt1} \n".format(
+                        prelayer=int(prelayer),
+                        nextlayer=int(nextlayer),
+                        type=str(type),
+                        volumn=volumn_val,
+                        pt0=int(prelayer_tile[0]),
+                        pt1=int(prelayer_tile[1]),
+                        nt0=int(nextlayer_tile[0]),
+                        nt1=int(nextlayer_tile[1]),
                     )
                 )
 
 
-def loadParam(param,Dir="Parameters"):
-    with open(
-        os.path.join(app_path(), Dir,"{}.json").format(param),
-        "r",
-        encoding="utf-8",
-    ) as f:
+def loadParam(param, Dir="Parameters"):
+    with open(os.path.join(app_path(), Dir,"{}.json").format(param), "r", encoding="utf-8") as f:
         data = json.loads(f.read())
         return data
 
 def loadPerfParam(param):
-    with open(
-        os.path.join(app_path(), "Performance/{}.json").format(param),
-        "r",
-        encoding="utf-8",
-    ) as f:
+    with open(os.path.join(app_path(), "Performance/{}.json").format(param), "r", encoding="utf-8") as f:
         data = json.loads(f.read())
         return data
 
-
 def saveParam(param, udata):
-    with open(
-        os.path.join(app_path(), "Performance/{}.json").format(param),
-        "w",
-        encoding="utf-8",
-    ) as f:
+    with open(os.path.join(app_path(), "Performance/{}.json").format(param), "w", encoding="utf-8") as f:
         f.write(json.dumps(udata))
-
 
 def updateParam(param, paramname, udata, Dir="Parameters"):
     dict_data = loadParam(param,Dir=Dir)
     dict_data[paramname] = udata
-    with open(
-        os.path.join(app_path(), Dir,"{}.json").format(param),
-        "w",
-        encoding="utf-8",
-    ) as f:
+    with open(os.path.join(app_path(), Dir,"{}.json").format(param), "w", encoding="utf-8") as f:
         f.write(json.dumps(dict_data))
-
-
-def TechnodeParam():
-    Tech = loadParam("TechnodeParam")
-    return Tech
-
-
-def MacroParam(Dir="Parameters"):
-    Macroparameters = loadParam("MacroParam",Dir=Dir)
-
-    return Macroparameters
-
-
-# print(type(MacroParam()['Rsense']))
-def NNParam():
-    # [inchannels,outchannels,featuresize,featuresize,kernelsize,kernelsize,stride,padding,type)
-    # Vgg11 = [[['Conv',1, 6, 28, 28, 3, 3, 1, 1], []],
-    #          [['ConvRelu',1, 1, 1, 1, 1, 1, 1, 1], []],
-    #          [['Maxpool',6, 6, 28, 28, 2, 2, 2, 0], []],
-    #          [['Conv',6, 16, 14, 14, 3, 3, 1, 1], []],
-    #          [['ConvRelu',1, 1, 1, 1, 1, 1, 1, 1], []],
-    #          [['Maxpool',16, 16, 14, 14, 2, 2, 2, 0], []],
-    #
-    #          [['Linear',784, 120, 1, 1, 1, 1, 1, 1], []],
-    #          [['LinearRelu',1, 1, 1, 1, 1, 1, 1, 1], []],
-    #          [['Linear',120, 84, 1, 1, 1, 1, 1, 1], []],
-    #          [['LinearRelu',1, 1, 1, 1, 1, 1, 1, 1], []],
-    #          [['Linear',84, 10, 1, 1, 1, 1, 1, 1], []]]
-
-    with open("../Parameters/NNParam.txt", "r", encoding="utf-8") as f:
-        data = f.read()
-    Vgg11 = eval(data)
-
-    return Vgg11
-
-
-def trainParam(Dir="Parameters"):
-    Trainfactors = loadParam("trainParam",Dir=Dir)
-
-    return Trainfactors
-
 
 def SpecParam(Dir="Parameters"):
     Specification = loadParam("SpecParam",Dir=Dir)
-
     return Specification
-
 
 def SpecboundParam():
     Specboundaries = loadParam("SpecboundParam")
     return Specboundaries
 
-
 def NeuronsynpaseParam():
     NeurSynap = loadParam("NeuronsynpaseParam")
-
     return NeurSynap
-
 
 def OptParam(Dir="Parameters"):
     Opt = loadParam("OptParam",Dir=Dir)
     return Opt
-
 
 def DefinedPerformance(energy, latency, area):
     # latency unit is second, energy unit is mJ, area unit is mm2

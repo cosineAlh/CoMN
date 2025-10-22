@@ -37,18 +37,8 @@ PyWeight::PyWeight() {
         }
       } else if (key == "weight_sparsity") {
         weight_sparsity = stod(value);
-      } else if (key == "type") {
-        // "type" is an identifier for Matmul. there are two possible values:
-        // "LW" -- weight on the left and "RW" -- weight on the right.
-        type = value;
-        type.erase(0, type.find_first_not_of(" "));
-      }
+      } 
     }
-    // for (auto i : shape) {
-    //   cout << i << " ";
-    // }
-    // cout << endl;
-    // cout << "weight_sparsity = " << weight_sparsity << endl;
   } else {
     throw runtime_error("Cannot Open PyWeight.txt!!");
   }

@@ -1,28 +1,23 @@
-##################################################################################################
-############          Scenario 2: Optimizing IMC chip specification for multiple DNN models   ########################
-##################################################################################################
+####################################################################################
+####### Scenario 2: Optimizing IMC chip specification for multiple DNN models ######
+####################################################################################
 
-from models import *
 import numpy as np
-from Parameters import *
-import time
-from Mapping_optimizer import *
-from Bayesian.bayes.bayesian_optimization import BayesianOptimization
 import math
 import sys
 import json
-from frozen_dir import app_path
+import re
+import os
+
+from Parameters import *
+from utils import app_path
+from Mapping_optimizer import *
+from Bayesian.bayesian_optimization import BayesianOptimization
 temp = sys.stdout
 
-Spec_user_name = ""
-Spec_weight_name = ""
-Spec_tid = ""
 
-
-def specification(Subarray, Macronumbers, buswidthTile, buffersizeTile, ColumnMUX, Meshflitband, Htreeflitband):
-    global Spec_User_name
-    global Spec_weight_name
-    global Spec_tid
+def specification(Subarray, Macronumbers, buswidthTile, buffersizeTile, ColumnMUX, Meshflitband):
+    global Spec_mapping_out_path, Spec_onnx_path
     optparam = OptParam()
     arrayrow = int(math.pow(2, round(math.log2(Subarray))))
     arraycol = int(arrayrow)
@@ -31,16 +26,12 @@ def specification(Subarray, Macronumbers, buswidthTile, buffersizeTile, ColumnMU
     buffersizeTile =  int(math.pow(2, round(math.log2(buffersizeTile))))
     buswidthTile =  int(math.pow(2, round(math.log2(buswidthTile))))
     ColumnMUX =  int(math.pow(2, round(math.log2(ColumnMUX))))
-    Macroparameters = MacroParam()
     Meshflitband =  int(math.pow(2, round(math.log2(Meshflitband))))
-    Htreeflitband =  int(math.pow(2, round(math.log2(Htreeflitband))))
-    ADC_levels = float(2**Macroparameters["ADC_resolution"])    
 
     Set_Htreenums = [1, 4, 8, 16, 32, 64, 128, 256]
     Htreenums = Set_Htreenums
     Set_Htreesize = [[1, 1], [2, 2], [2, 4], [4, 4], [4, 8], [8, 8], [8, 16], [16, 16]]
     Set_Routernum = [0, 1, 3, 5, 11, 21, 43, 85]
-    # Macronumbers = 64  # Set_macronums[i]
     Htreenums.append(Macronumbers)
     macronums = sorted(Htreenums)
     Macronums = macronums.index(Macronumbers)
@@ -48,33 +39,48 @@ def specification(Subarray, Macronumbers, buswidthTile, buffersizeTile, ColumnMU
     RouternumperTile = Set_Routernum[Macronums]
     Tile = Set_Htreesize[Macronums]
     
-    ### Update Params Here!!!(TODO: The order change too much. Need to be validated.)
     updateParam('SpecParam','Subarray',Subarray)
     updateParam('SpecParam','Tile',Tile)
     updateParam('SpecParam', 'buswidthTile', buswidthTile)
     updateParam('SpecParam', 'buffersizeTile', buffersizeTile)
     updateParam('SpecParam', 'ColumnMUX', ColumnMUX)
     updateParam('SpecParam', 'MeshNoC_flitband', Meshflitband)
-    updateParam('SpecParam', 'HtreeNoC_flitband', Htreeflitband)
     
     curDir = os.getcwd()
     os.chdir("./refactor/build")
-    os.system("./main --PPA_cost " + "user" + " " + "1") # any name/tid is ok
+    os.system("./main --PPA_cost")
     os.chdir(curDir)
 
-    energy = 0
-    latency = 0
-    area = 0
-    if Subarray[0] < 512: # faster placing
-        [total_energy, total_latency, total_area] = mapping(Spec_User_name,Spec_weight_name,'spec')
-    else: # more accurate placing
-        [total_energy, total_latency, total_area] = mapping(Spec_User_name,Spec_weight_name,'1')
-    energy += total_energy
-    latency += total_latency
-    area += total_area
+    mapping(Spec_mapping_out_path, Spec_onnx_path)
+
+    # Parse energy (mJ), latency (ms), and area (mm2) from mapping_out.txt
+    # Convert energy to J and latency to s to keep internal units consistent
+    map_path = Spec_mapping_out_path
+    # Accept either a directory that contains mapping_out.txt or a direct file path
+    map_file = os.path.join(map_path, "mapping_out.txt") if os.path.isdir(map_path) else map_path
+
+    if not os.path.isfile(map_file):
+        raise FileNotFoundError(f"mapping_out.txt not found at: {map_file}")
+
+    pattern = re.compile(r"total energy \(mJ\):\s*([0-9eE+\-.]+)\s+total latency \(ms\):\s*([0-9eE+\-.]+)\s+total area \(mm2\):\s*([0-9eE+\-.]+)")
+    energy = latency = area = None
+    with open(map_file, "r") as f:
+        for line in f:
+            m = pattern.search(line)
+            if m:
+                energy_mj = float(m.group(1))
+                latency_ms = float(m.group(2))
+                area_mm2 = float(m.group(3))
+                energy = energy_mj / 1000.0  # J
+                latency = latency_ms / 1000.0  # s
+                area = area_mm2  # mm^2
+                break
+
+    if energy is None or latency is None or area is None:
+        raise ValueError("Failed to parse energy/latency/area from mapping_out.txt")
     if optparam['specification_optimized'] == True:
-        perf_root_path = "../generate_data/" + Spec_User_name + "/performance_out"
-        perf_path = perf_root_path + "/performance_out" + str(Spec_tid) + ".txt"
+        perf_root_path = "../generate_data/performance_out"
+        perf_path = perf_root_path + "/performance_out.txt"
         with open(perf_path,"a+") as f:
             f.write("\n")
             f.write(f"total energy (mJ): \t{energy * 1000}\t total latency (ms): \t{latency * 1000}\t total area (mm2): \t{area}\n")
@@ -84,68 +90,22 @@ def specification(Subarray, Macronumbers, buswidthTile, buffersizeTile, ColumnMU
     return output
 
 
-def Specification_optimizer(user_name,weight_name,tid):
-    global Spec_User_name
-    global Spec_weight_name
-    global Spec_tid
-    Spec_User_name = user_name
-    Spec_weight_name = weight_name
-    Spec_tid = tid
+def Specification_optimizer(mapping_out_path, onnx_model_path):
+    global Spec_mapping_out_path, Spec_onnx_path
+    Spec_mapping_out_path = mapping_out_path
+    Spec_onnx_path = onnx_model_path
 
-    start = time.perf_counter()
     verbose = 2
     optparam = OptParam()
 
-    perf_root_path = "../generate_data/" + user_name + "/performance_out"
-    perf_path = perf_root_path + "/performance_out" + str(tid) + ".txt"
+    perf_root_path = "../generate_data/performance_out"
+    perf_path = perf_root_path + "/performance_out.txt"
     if optparam['specification_optimized'] == True:
-        Trainfactors = trainParam()
-        if Trainfactors["usermodel"] == True:
-            path = "userdefined_cifar10_weight"
-        if Trainfactors["defaultmodel"] == True:
-            if Trainfactors["vgg11"]:
-                path = "/vgg11_cifar10_weight"
-            elif Trainfactors["vgg13"]:
-                path = "/vgg13_cifar10_weight"
-            elif Trainfactors["vgg16"]:
-                path = "/vgg16_cifar10_weight"
-            elif Trainfactors["vgg19"]:
-                path = "/vgg19_cifar10_weight"
-            elif Trainfactors["resnet18"]:
-                path = "/resnet18_cifar10_weight"
-            elif Trainfactors["resnet34"]:
-                path = "/resnet34_cifar10_weight"
-            elif Trainfactors["resnet50"]:
-                path = "/resnet50_cifar10_weight"
-            elif Trainfactors["resnet101"]:
-                path = "/resnet101_cifar10_weight"
-            elif Trainfactors["resnet152"]:
-                path = "/resnet152_cifar10_weight"
-            elif Trainfactors["mobilenet"]:
-                path = "/mobilenet_cifar10_weight"
-            elif Trainfactors["stgcn"]:
-                path = "/stgcn_METRLA_weight"
-        path = "Weight/" + user_name + weight_name + path
-        # print(f'[INFO](Mapping_optimizer.py) path = {path}')
-        resume = os.path.join(app_path(), path, "checkpoint.tar")
-        if not os.path.isfile(resume):
-            with open(perf_path,"w+") as f:
-                f.write("No pretrained weights available. Please execute Retraining module first.")
-                f.write("\n")
-            return 0
-        
-        with open(perf_path,"w+") as f:
-            f.write("=========================================================================================================================\n\n")
-            f.write("################################Optimizing key specification for target DNN model######################################\n\n")
-            f.write("=========================================================================================================================\n\n")
-        # file = open(os.path.join(app_path(),"performance_out"+tid+".txt"), "w+")
-        # sys.stdout = file
+        with open(perf_path, "w+") as f:
+            f.write("#######################################################\n\n")
+            f.write("##################### Optimizing ######################\n\n")
+            f.write("#######################################################\n\n")
 
-        # print(
-        #     "=========================================================================================================================", flush=True)
-        # print("################################Optimizing key specification for target DNN model######################################", flush=True)
-        # print(
-        #     "=========================================================================================================================", flush=True)
     verbose = 2
     Specboundaries = SpecboundParam()
     pbounds = {'Subarray': (Specboundaries['minSubarray'], Specboundaries['maxSubarray']),
@@ -153,14 +113,9 @@ def Specification_optimizer(user_name,weight_name,tid):
                'buswidthTile': (Specboundaries['minbuswidthTile'], Specboundaries['maxbuswidthTile']),
                'buffersizeTile': (Specboundaries['minbuffersizeTile'], Specboundaries['maxbuffersizeTile']),
                'ColumnMUX': (Specboundaries['minColumnMUX'], Specboundaries['maxColumnMUX']),
-               'Meshflitband': (Specboundaries['minmeshflitband'], Specboundaries['maxmeshflitband']),
-               'Htreeflitband': (Specboundaries['minhtreeflitband'], Specboundaries['maxhtreeflitband'])}
+               'Meshflitband': (Specboundaries['minmeshflitband'], Specboundaries['maxmeshflitband'])}
 
-    optimizer = BayesianOptimization(f=specification, pbounds=pbounds, random_state=1,verbose=verbose,
-                                     path = perf_path)
-    if optparam['circuit_optimized'] == True:
-        optimizer.maximize(init_points=optparam['init_points']/10, n_iter=optparam['search_iters'])
-
+    optimizer = BayesianOptimization(f=specification, pbounds=pbounds, random_state=1, verbose=verbose, path=perf_path)
     optimizer.maximize(init_points=optparam['init_points'], n_iter=optparam['search_iters'])
 
     arrayrow = int(math.pow(2, round(math.log2(optimizer.max['params']['Subarray']))))
@@ -177,11 +132,9 @@ def Specification_optimizer(user_name,weight_name,tid):
     Macronumbers = Set_Htreenums[Macronums]
     Tile = Set_Htreesize[Macronums]
     meshflitband = int(math.pow(2,round(math.log2(optimizer.max['params']['Meshflitband']))))
-    htreeflitband = int(math.pow(2,round(math.log2(optimizer.max['params']['Htreeflitband']))))
-
 
     if optparam['specification_optimized'] == True:
-        with open(perf_path,"a+") as f:
+        with open(perf_path, "a+") as f:
             f.write("IMC specifications are shown as follows\n\n")
             f.write(f"Subarray size: {Subarray}\n")
             f.write(f"Tile size: {Tile}\n")
@@ -189,15 +142,6 @@ def Specification_optimizer(user_name,weight_name,tid):
             f.write(f"Buswidth of Tile buffer (B): {buswidthTile}\n")
             f.write(f"Buffer size per Tile (KB): {buffersizeTile}\n")
             f.write(f"the sysytem performance: {optimizer.max['target']}\n\n")
-        # print("Htree router flit bandwidth (B):", htreeflitband)
-        # print("Mesh router flit bandwidth (B)", meshflitband)
-        # file.close()
-        # sys.stdout = temp
-
-
-
-    end = time.perf_counter()
-
 
     return optimizer.max['target']
 
